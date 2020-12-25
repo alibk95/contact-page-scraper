@@ -3,7 +3,9 @@ from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 import colorama
 import csv
-
+from collections import deque
+from urllib.parse import urlsplit
+import re
 # init the colorama module
 colorama.init()
 
@@ -81,13 +83,46 @@ def crawl(url, max_urls=50):
         crawl(link, max_urls=max_urls)
 
 
+def get_email(url):
+
+    # a queue of urls to be crawled
+    unprocessed_urls = url
+    print(unprocessed_urls)
+    # set of already crawled urls for email
+
+    # extract base url to resolve relative links
+    parts = urlsplit(url)
+
+
+    try:
+        response = requests.get(url)
+    except:
+        response = ""
+        pass
+
+    # extract all email addresses and add them into the resulting set
+    # You may edit the regular expression as per your requirement
+    try:
+        new_emails = set(re.findall(r"[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+", response.text, re.I))
+        emails = new_emails
+        if emails == set():
+            emails = ''
+    except:
+        emails = ''
+
+    print(emails)
+
+    return emails
+
+
 if __name__ == "__main__":
 
-    dictionary = open('need_contact_form.csv', 'r', encoding="utf-8")
+    dictionary = open('need_contact_form_test.csv', 'r', encoding="utf-8")
     query_list = dictionary.readlines()
 
     for q in query_list:
         found = ""
+        emails = set()
         t_url = q.strip()
         url = "http://"+t_url
         max_urls = 1
@@ -102,14 +137,20 @@ if __name__ == "__main__":
         domain_name = urlparse(url).netloc
 
         for t in internal_urls:
+            emails.update(get_email(t))
+            
             if 'contact' in t:
                 found = t
                 internal_urls = set()
 
-        fieldnames = ['link', 'contact']
+        isEmpty = (emails == set())
+        if isEmpty:
+            emails = ''
+
+        fieldnames = ['link', 'contact', 'email']
         with open(r'output_with_contact.csv', 'a', newline='', encoding="utf-8") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             # checks if the file already exists with headers then it skips writing headers again.
             if csvfile.tell() == 0:
                 writer.writeheader()
-            writer.writerow({'link': q, 'contact': found})
+            writer.writerow({'link': q, 'contact': found, 'email': emails})
